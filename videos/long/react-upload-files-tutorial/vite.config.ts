@@ -22,6 +22,27 @@ export default defineConfig({
       },
     }),
   ],
+  server: {
+    proxy: {
+      '/upload-api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (requestPath) => requestPath.replace(/^\/upload-api/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyResponse) => {
+            const location = proxyResponse.headers.location;
+            if (
+              location === '/' ||
+              location === 'http://localhost:8080/' ||
+              location === 'http://127.0.0.1:8080/'
+            ) {
+              proxyResponse.headers.location = '/upload-api/';
+            }
+          });
+        },
+      },
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

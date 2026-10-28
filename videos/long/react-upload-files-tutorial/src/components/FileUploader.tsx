@@ -2,11 +2,14 @@ import axios from 'axios';
 import { ChangeEvent, useState } from 'react';
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
+type UploadedFile = { id: string; name: string };
 
 export default function FileUploader() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UploadStatus>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [uploadError, setUploadError] = useState('');
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     if (e.target.files) {
@@ -19,15 +22,13 @@ export default function FileUploader() {
 
     setStatus('uploading');
     setUploadProgress(0);
+    setUploadError('');
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      await axios.post('https://httpbin.org/post', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      await axios.post('/upload-api/', formData, {
         onUploadProgress: (progressEvent) => {
           const progress = progressEvent.total
             ? Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -36,11 +37,22 @@ export default function FileUploader() {
         },
       });
 
+      setUploadedFiles((files) => [
+        ...files,
+        { id: `${Date.now()}-${Math.random()}`, name: file.name },
+      ]);
       setStatus('success');
       setUploadProgress(100);
-    } catch {
+    } catch (error) {
       setStatus('error');
       setUploadProgress(0);
+      setUploadError(
+        axios.isAxiosError(error)
+          ? error.response?.status
+            ? `Server returned HTTP ${error.response.status}.`
+            : error.message
+          : 'An unexpected error occurred.',
+      );
     }
   }
 
@@ -77,8 +89,30 @@ export default function FileUploader() {
       )}
 
       {status === 'error' && (
-        <p className="text-sm text-red-600">Upload failed. Please try again.</p>
+        <p className="text-sm text-red-600" role="alert">
+          Upload failed. {uploadError} Please try again.
+        </p>
       )}
+
+      <section className="mt-6 space-y-2" aria-live="polite">
+        <h2 className="text-base font-semibold">Uploaded files</h2>
+        {uploadedFiles.length === 0 ? (
+          <p className="text-sm text-gray-600">No files uploaded yet.</p>
+        ) : (
+          <ul className="list-inside list-disc space-y-1 text-sm">
+            {uploadedFiles.map((uploadedFile) => (
+              <li key={uploadedFile.id}>
+                <a
+                  className="text-blue-600 underline"
+                  href={`/upload-api/files/${encodeURIComponent(uploadedFile.name)}`}
+                >
+                  {uploadedFile.name}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
